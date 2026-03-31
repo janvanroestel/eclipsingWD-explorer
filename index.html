@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WD+RD Eclipsing Binaries from ZTF</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script src="data.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0d0d1a;
+            color: #ccc;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        header {
+            padding: 12px 24px;
+            background: #111122;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        header h1 {
+            font-size: 1.3em;
+            font-weight: 500;
+            color: #e0e0ff;
+        }
+        header { display: flex; align-items: center; justify-content: space-between; }
+        #hr-filter {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 0.9em;
+        }
+        #hr-filter label { color: #99a; }
+        #subset-select {
+            background: #1a1a30;
+            color: #dde;
+            border: 1px solid #3a3a5a;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            outline: none;
+        }
+        #subset-select:focus { border-color: #00a0cc; }
+        #coord-search {
+            background: #1a1a30;
+            color: #dde;
+            border: 1px solid #3a3a5a;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 0.9em;
+            width: 220px;
+            outline: none;
+        }
+        #coord-search:focus { border-color: #00a0cc; }
+        #coord-search::placeholder { color: #556; }
+        #search-msg {
+            font-size: 0.8em;
+            color: #f66;
+            min-width: 60px;
+        }
+        #hr-diagram {
+            width: 100%;
+            height: 55vh;
+            min-height: 350px;
+        }
+        #info-bar {
+            padding: 8px 24px;
+            background: #151530;
+            border-top: 1px solid #2a2a4a;
+            border-bottom: 1px solid #2a2a4a;
+            font-size: 0.95em;
+            min-height: 36px;
+            display: flex;
+            align-items: center;
+            color: #99a;
+        }
+        #info-bar .name { color: #00e5ff; font-weight: 600; }
+        #info-bar .period { color: #e0e0ff; margin-left: 16px; }
+        #info-bar .tags { color: #9a9; margin-left: 16px; font-style: italic; }
+        #lc-controls {
+            padding: 6px 24px;
+            background: #111122;
+            display: none;
+            align-items: center;
+            gap: 24px;
+        }
+        #lc-controls label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            color: #aab;
+        }
+        .toggle {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            appearance: none;
+            -webkit-appearance: none;
+            background: #2a2a4a;
+            border-radius: 10px;
+            outline: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .toggle:checked { background: #00a0cc; }
+        .toggle::before {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            background: #ccc;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+        .toggle:checked::before { transform: translateX(16px); }
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .toggle-label-off, .toggle-label-on {
+            font-size: 0.85em;
+            color: #778;
+        }
+        .toggle-label-off.active, .toggle-label-on.active {
+            color: #dde;
+            font-weight: 500;
+        }
+        #lc-panel {
+            width: 100%;
+            height: 38vh;
+            min-height: 250px;
+        }
+        #lc-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 38vh;
+            min-height: 250px;
+            color: #556;
+            font-size: 1.1em;
+        }
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00e5ff;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>WD+RD Eclipsing Binaries from ZTF</h1>
+    <div id="hr-filter">
+        <div class="toggle-group">
+            <span class="toggle-label-off active" id="hr-label">HR diagram</span>
+            <input type="checkbox" class="toggle" id="toggle-diagram">
+            <span class="toggle-label-on" id="pmag-label">P vs G</span>
+        </div>
+        <input type="text" id="coord-search" placeholder="Search: RA Dec or HH:MM:SS DD:MM:SS">
+        <span id="search-msg"></span>
+        <div class="toggle-group">
+            <span class="toggle-label-off" id="accreting-hide-label">Hide accreting</span>
+            <input type="checkbox" class="toggle" id="toggle-accreting" checked>
+            <span class="toggle-label-on active" id="accreting-show-label">Show accreting</span>
+        </div>
+        <label for="subset-select">Highlight:</label>
+        <select id="subset-select">
+            <option value="none">All (no highlight)</option>
+            <option value="magnetic">Magnetic</option>
+            <option value="reflection">Reflection</option>
+            <option value="ellipsoidal">Ellipsoidal</option>
+            <option value="spot">Spot</option>
+        </select>
+    </div>
+</header>
+
+<div id="hr-diagram"></div>
+
+<div id="info-bar">Click a point in the HR diagram to show its folded light curve</div>
+
+<div id="lc-controls">
+    <div class="toggle-group">
+        <span class="toggle-label-off active" id="flux-label">Flux</span>
+        <input type="checkbox" class="toggle" id="toggle-mag">
+        <span class="toggle-label-on" id="mag-label">Magnitude</span>
+    </div>
+    <div class="toggle-group">
+        <span class="toggle-label-off active" id="folded-label">Folded</span>
+        <input type="checkbox" class="toggle" id="toggle-unfold">
+        <span class="toggle-label-on" id="unfolded-label">Unfolded</span>
+    </div>
+</div>
+
+<div id="lc-placeholder">Select an object above to display its phase-folded light curve</div>
+<div id="lc-panel" style="display:none;"></div>
+
+<div class="loading" id="loading">Loading data...</div>
+
+<script>
+(function() {
+    let sampleData = null;
+    let heatmapData = null;
+    const lcCache = {};
+    let currentLC = null;
+    let currentName = null;
+    let currentPeriod = null;
+    let visibleIndices = [];  // maps plotly point index -> sample index
+
+    function init() {
+        sampleData = SAMPLE_DATA;
+        heatmapData = HEATMAP_DATA;
+        document.getElementById('loading').style.display = 'none';
+        renderDiagram();
+    }
+
+    function renderDiagram() {
+        const isPmag = document.getElementById('toggle-diagram').checked;
+
+        // Gaia heatmap (only for HR mode)
+        let traceHeat;
+        if (!isPmag) {
+            const xc = heatmapData.x_edges.slice(0, -1).map((v, i) =>
+                (v + heatmapData.x_edges[i + 1]) / 2);
+            const yc = heatmapData.y_edges.slice(0, -1).map((v, i) =>
+                (v + heatmapData.y_edges[i + 1]) / 2);
+            traceHeat = {
+                x: xc, y: yc, z: heatmapData.z,
+                type: 'heatmap', transpose: true,
+                colorscale: [
+                    [0.0, '#0d0d1a'], [0.15, '#1a1530'], [0.3, '#2a1a40'],
+                    [0.5, '#4a2a60'], [0.7, '#7a4a90'], [0.85, '#b080c0'],
+                    [1.0, '#e8d0f0']
+                ],
+                showscale: false, hoverinfo: 'skip', zsmooth: 'fast'
+            };
+        } else {
+            traceHeat = {
+                x: [], y: [], z: [[]],
+                type: 'heatmap', showscale: false, hoverinfo: 'skip',
+                colorscale: [[0, '#0d0d1a'], [1, '#0d0d1a']]
+            };
+        }
+
+        // Placeholder scatter and highlight traces
+        const traceSample = {
+            x: [], y: [], customdata: [],
+            type: 'scatter', mode: 'markers',
+            marker: { size: 5, color: '#00e5ff', opacity: 0.85, line: { width: 0 } },
+            hovertemplate: '',
+            name: 'WD+RD'
+        };
+        const traceHighlight = {
+            x: [], y: [],
+            type: 'scatter', mode: 'markers',
+            marker: { size: 12, color: 'rgba(0,0,0,0)', line: { color: '#ffffff', width: 2 } },
+            hoverinfo: 'skip', showlegend: false
+        };
+
+        const layout = {
+            xaxis: {
+                title: { text: isPmag ? 'Period (d)' : 'BP \u2212 RP (mag)', font: { size: 14 } },
+                color: '#ccc', gridcolor: '#1a1a30', zerolinecolor: '#2a2a4a',
+                type: isPmag ? 'log' : 'linear',
+                autorange: isPmag ? true : false,
+                range: isPmag ? undefined : [-0.8, 5.5],
+                tickformat: isPmag ? '.2f' : undefined
+            },
+            yaxis: {
+                title: { text: isPmag ? 'G (mag)' : 'M\u1d33 (mag)', font: { size: 14 } },
+                color: '#ccc', gridcolor: '#1a1a30', zerolinecolor: '#2a2a4a',
+                autorange: 'reversed'
+            },
+            plot_bgcolor: '#0d0d1a',
+            paper_bgcolor: '#0d0d1a',
+            font: { color: '#ccc' },
+            hovermode: 'closest',
+            margin: { t: 10, b: 55, l: 65, r: 15 },
+            showlegend: false
+        };
+
+        Plotly.newPlot('hr-diagram', [traceHeat, traceSample, traceHighlight],
+                       layout, { responsive: true });
+
+        document.getElementById('hr-diagram').on('plotly_click', onHRClick);
+        updateDiagram();
+    }
+
+    // Accreting toggle and subset dropdown both call updateDiagram
+    document.getElementById('toggle-accreting').addEventListener('change', function() {
+        document.getElementById('accreting-show-label').classList.toggle('active', this.checked);
+        document.getElementById('accreting-hide-label').classList.toggle('active', !this.checked);
+        updateDiagram();
+    });
+    document.getElementById('subset-select').addEventListener('change', updateDiagram);
+    document.getElementById('toggle-diagram').addEventListener('change', function() {
+        document.getElementById('hr-label').classList.toggle('active', !this.checked);
+        document.getElementById('pmag-label').classList.toggle('active', this.checked);
+        renderDiagram();
+    });
+
+    function updateDiagram() {
+        const showAccreting = document.getElementById('toggle-accreting').checked;
+        const subset = document.getElementById('subset-select').value;
+        const isPmag = document.getElementById('toggle-diagram').checked;
+        const n = sampleData.ztfname.length;
+
+        visibleIndices = [];
+        const xVals = [], yVals = [], colors = [], sizes = [], opacities = [];
+        const customdata = [];
+
+        for (let i = 0; i < n; i++) {
+            const isAccreting = sampleData.tags[i].includes('accreting');
+            if (!showAccreting && isAccreting) continue;
+
+            if (isPmag) {
+                // P-mag: need period and Gaia G magnitude
+                if (sampleData.period[i] == null || sampleData.period[i] <= 0) continue;
+                if (sampleData.gmag[i] == null) continue;
+            } else {
+                // HR: need valid absolute magnitude and color
+                if (!sampleData.in_hr[i]) continue;
+            }
+
+            visibleIndices.push(i);
+
+            const xVal = isPmag ? sampleData.period[i] : sampleData.bprp[i];
+            const yVal = isPmag ? sampleData.gmag[i] : sampleData.mg[i];
+            xVals.push(xVal);
+            yVals.push(yVal);
+            customdata.push([
+                sampleData.ztfname[i],
+                sampleData.period[i] != null ? sampleData.period[i].toFixed(6) : 'N/A',
+                sampleData.gmag[i] != null ? sampleData.gmag[i].toFixed(2) : 'N/A',
+                sampleData.has_lc[i],
+                sampleData.tags[i].join(', ')
+            ]);
+
+            if (subset === 'none') {
+                colors.push(isAccreting ? '#ff9900' : '#00e5ff');
+                sizes.push(5);
+                opacities.push(0.85);
+            } else {
+                const match = sampleData.tags[i].includes(subset);
+                if (match) {
+                    colors.push(isAccreting ? '#ff9900' : '#ff4466');
+                    sizes.push(7);
+                    opacities.push(1.0);
+                } else {
+                    colors.push(isAccreting ? 'rgba(255,153,0,0.25)' : '#00e5ff');
+                    sizes.push(4);
+                    opacities.push(0.25);
+                }
+            }
+        }
+
+        const hoverTemplate = isPmag
+            ? '<b>%{customdata[0]}</b><br>P = %{x:.6f} d<br>G = %{y:.2f} mag<extra></extra>'
+            : '<b>%{customdata[0]}</b><br>P = %{customdata[1]} d<br>G = %{customdata[2]} mag<br>BP\u2212RP = %{x:.3f} mag<extra></extra>';
+
+        Plotly.restyle('hr-diagram', {
+            x: [xVals],
+            y: [yVals],
+            customdata: [customdata],
+            'marker.color': [colors],
+            'marker.size': [sizes],
+            'marker.opacity': [opacities],
+            hovertemplate: [hoverTemplate]
+        }, [1]);
+
+        // Clear selection highlight
+        Plotly.restyle('hr-diagram', { x: [[]], y: [[]] }, [2]);
+    }
+
+    async function onHRClick(event) {
+        const pt = event.points[0];
+        if (pt.curveNumber !== 1) return;
+        const idx = visibleIndices[pt.pointIndex];
+        selectObject(idx);
+    }
+
+    async function selectObject(idx) {
+        const name = sampleData.ztfname[idx];
+        const period = sampleData.period[idx];
+        const tags = sampleData.tags[idx];
+
+        // Update highlight on diagram (only if object would be visible)
+        const isPmag = document.getElementById('toggle-diagram').checked;
+        const highlightX = isPmag ? sampleData.period[idx] : sampleData.bprp[idx];
+        const highlightY = isPmag ? sampleData.gmag[idx] : sampleData.mg[idx];
+        const canHighlight = isPmag
+            ? (highlightX != null && highlightY != null)
+            : (sampleData.in_hr[idx] && highlightX != null && highlightY != null);
+        if (canHighlight) {
+            Plotly.restyle('hr-diagram', {
+                x: [[highlightX]],
+                y: [[highlightY]]
+            }, [2]);
+        } else {
+            Plotly.restyle('hr-diagram', { x: [[]], y: [[]] }, [2]);
+        }
+
+        // Update info bar
+        const infoBar = document.getElementById('info-bar');
+        const hrNote = sampleData.in_hr[idx] ? '' : ' <span style="color:#776">(no Gaia parallax)</span>';
+        infoBar.innerHTML =
+            '<span class="name">' + name + '</span>' + hrNote +
+            '<span class="period">P = ' + (period != null ? period.toFixed(6) : 'N/A') + ' d</span>' +
+            (tags.length ? '<span class="tags">' + tags.join(', ') + '</span>' : '');
+
+        if (!sampleData.has_lc[idx]) {
+            document.getElementById('lc-panel').style.display = 'none';
+            document.getElementById('lc-placeholder').style.display = 'flex';
+            document.getElementById('lc-placeholder').textContent =
+                name + ' \u2014 no light curve available';
+            return;
+        }
+
+        // Fetch LC data
+        if (!lcCache[name]) {
+            try {
+                const resp = await fetch('data/lc/' + name + '.json');
+                lcCache[name] = await resp.json();
+            } catch (e) {
+                document.getElementById('lc-placeholder').style.display = 'flex';
+                document.getElementById('lc-panel').style.display = 'none';
+                document.getElementById('lc-placeholder').textContent =
+                    'Error loading light curve for ' + name +
+                    (location.protocol === 'file:' ? ' \u2014 light curves require an HTTP server (python3 -m http.server)' : '');
+                return;
+            }
+        }
+
+        currentLC = lcCache[name];
+        currentName = name;
+        currentPeriod = period;
+
+        document.getElementById('lc-placeholder').style.display = 'none';
+        document.getElementById('lc-panel').style.display = 'block';
+        document.getElementById('lc-controls').style.display = 'flex';
+        renderLC();
+    }
+
+    // --- Coordinate search ---
+
+    function parseCoords(input) {
+        input = input.trim();
+        if (!input) return null;
+
+        // Try decimal degrees: "ra dec" or "ra, dec"
+        const decMatch = input.match(/^([+-]?\d+\.?\d*)\s*[,\s]\s*([+-]?\d+\.?\d*)$/);
+        if (decMatch) {
+            return { ra: parseFloat(decMatch[1]), dec: parseFloat(decMatch[2]) };
+        }
+
+        // Try sexagesimal: "HH:MM:SS.s DD:MM:SS.s" or "HHhMMmSSs +DDdMMmSSs" etc.
+        // Split into RA and Dec parts
+        const sexMatch = input.match(
+            /^(\d{1,2})[:\shHh](\d{1,2})[:\smMm](\d{1,2}(?:\.\d+)?)[sS]?\s+([+-]?\d{1,3})[:\sdDd](\d{1,2})[:\smMm](\d{1,2}(?:\.\d+)?)[sS]?$/
+        );
+        if (sexMatch) {
+            const raH = parseFloat(sexMatch[1]);
+            const raM = parseFloat(sexMatch[2]);
+            const raS = parseFloat(sexMatch[3]);
+            const ra = (raH + raM / 60 + raS / 3600) * 15;
+
+            const decSign = sexMatch[4].startsWith('-') ? -1 : 1;
+            const decD = Math.abs(parseFloat(sexMatch[4]));
+            const decM = parseFloat(sexMatch[5]);
+            const decS = parseFloat(sexMatch[6]);
+            const dec = decSign * (decD + decM / 60 + decS / 3600);
+
+            return { ra, dec };
+        }
+
+        return null;
+    }
+
+    function angularSep(ra1, dec1, ra2, dec2) {
+        // Angular separation in arcseconds
+        const toRad = Math.PI / 180;
+        const dra = (ra1 - ra2) * toRad * Math.cos(dec1 * toRad);
+        const ddec = (dec1 - dec2) * toRad;
+        return Math.sqrt(dra * dra + ddec * ddec) * 180 / Math.PI * 3600;
+    }
+
+    function onSearch() {
+        const input = document.getElementById('coord-search').value;
+        const msg = document.getElementById('search-msg');
+        const coords = parseCoords(input);
+
+        if (!coords) {
+            msg.textContent = 'Invalid format';
+            msg.style.color = '#f66';
+            return;
+        }
+
+        // Find nearest object across ALL objects (not just HR-visible)
+        let bestIdx = -1;
+        let bestSep = Infinity;
+        const n = sampleData.ztfname.length;
+        for (let i = 0; i < n; i++) {
+            if (sampleData.ra[i] == null || sampleData.dec[i] == null) continue;
+            const sep = angularSep(coords.ra, coords.dec, sampleData.ra[i], sampleData.dec[i]);
+            if (sep < bestSep) {
+                bestSep = sep;
+                bestIdx = i;
+            }
+        }
+
+        if (bestIdx < 0) {
+            msg.textContent = 'No match';
+            msg.style.color = '#f66';
+            return;
+        }
+
+        if (bestSep > 60) {
+            msg.textContent = 'Nearest: ' + bestSep.toFixed(1) + '" (too far)';
+            msg.style.color = '#f66';
+            return;
+        }
+
+        msg.textContent = sampleData.ztfname[bestIdx] + ' (' + bestSep.toFixed(1) + '")';
+        msg.style.color = '#8d8';
+        selectObject(bestIdx);
+    }
+
+    document.getElementById('coord-search').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') onSearch();
+    });
+
+    function renderLC() {
+        if (!currentLC) return;
+        const lc = currentLC;
+        const name = currentName;
+        const period = currentPeriod;
+
+        const useMag = document.getElementById('toggle-mag').checked;
+        const useUnfolded = document.getElementById('toggle-unfold').checked;
+
+        // Update toggle label highlights
+        document.getElementById('flux-label').classList.toggle('active', !useMag);
+        document.getElementById('mag-label').classList.toggle('active', useMag);
+        document.getElementById('folded-label').classList.toggle('active', !useUnfolded);
+        document.getElementById('unfolded-label').classList.toggle('active', useUnfolded);
+
+        const bands = {
+            1: { color: '#44bb66', name: 'ZTF g' },
+            2: { color: '#dd4444', name: 'ZTF r' },
+            3: { color: '#ee9922', name: 'ZTF i' }
+        };
+
+        const traces = [];
+        for (const [fid, style] of Object.entries(bands)) {
+            const fidInt = parseInt(fid);
+            const mask = lc.f.map(f => f === fidInt);
+            const ph = lc.p.filter((_, i) => mask[i]);
+            const bjd = lc.b.filter((_, i) => mask[i]).map(v => v + 2458000);
+            const flux = lc.y.filter((_, i) => mask[i]);
+            const dflux = lc.e.filter((_, i) => mask[i]);
+            if (ph.length === 0) continue;
+
+            let xVals, srcFlux, srcDflux;
+
+            if (useUnfolded) {
+                xVals = bjd.slice();
+                srcFlux = flux.slice();
+                srcDflux = dflux.slice();
+            } else {
+                // Duplicate for phase + 1
+                xVals = ph.concat(ph.map(p => p + 1));
+                srcFlux = flux.concat(flux);
+                srcDflux = dflux.concat(dflux);
+            }
+
+            let yVals, dyVals;
+
+            if (useMag) {
+                // Convert flux to magnitude: m = -2.5 * log10(flux)
+                yVals = [];
+                dyVals = [];
+                const xFiltered = [];
+                for (let j = 0; j < xVals.length; j++) {
+                    if (srcFlux[j] > 0) {
+                        const mag = -2.5 * Math.log10(srcFlux[j] / 3631.0);
+                        const dmag = 2.5 / Math.LN10 * srcDflux[j] / srcFlux[j];
+                        xFiltered.push(xVals[j]);
+                        yVals.push(mag);
+                        dyVals.push(Math.abs(dmag));
+                    }
+                }
+                xVals = xFiltered;
+            } else {
+                yVals = srcFlux;
+                dyVals = srcDflux;
+            }
+
+            traces.push({
+                x: xVals,
+                y: yVals,
+                error_y: {
+                    type: 'data',
+                    array: dyVals,
+                    visible: true,
+                    thickness: 1,
+                    width: 0,
+                    color: style.color
+                },
+                type: 'scatter',
+                mode: 'markers',
+                marker: { size: 3, color: style.color },
+                name: style.name
+            });
+        }
+
+        const periodStr = period != null ? period.toFixed(6) : '?';
+
+        const layout = {
+            title: {
+                text: name + '  (P = ' + periodStr + ' d)',
+                font: { size: 13, color: '#ccc' },
+                x: 0.05,
+                xanchor: 'left'
+            },
+            xaxis: {
+                title: { text: useUnfolded ? 'BJD' : 'Phase', font: { size: 13 } },
+                color: '#ccc',
+                gridcolor: '#1a1a30',
+                zerolinecolor: '#2a2a4a'
+            },
+            yaxis: {
+                title: { text: useMag ? 'Magnitude' : 'Flux', font: { size: 13 } },
+                color: '#ccc',
+                gridcolor: '#1a1a30',
+                zerolinecolor: '#2a2a4a',
+                autorange: useMag ? 'reversed' : true
+            },
+            plot_bgcolor: '#0d0d1a',
+            paper_bgcolor: '#0d0d1a',
+            font: { color: '#ccc' },
+            margin: { t: 35, b: 50, l: 70, r: 15 },
+            showlegend: true,
+            legend: {
+                x: 1, y: 1, xanchor: 'right',
+                bgcolor: 'rgba(17,17,34,0.8)',
+                font: { size: 11 }
+            }
+        };
+
+        if (!useUnfolded) {
+            layout.xaxis.range = [0, 2];
+            layout.xaxis.dtick = 0.25;
+        }
+
+        Plotly.react('lc-panel', traces, layout, { responsive: true });
+    }
+
+    // Toggle listeners
+    document.getElementById('toggle-mag').addEventListener('change', renderLC);
+    document.getElementById('toggle-unfold').addEventListener('change', renderLC);
+
+    init();
+})();
+</script>
+
+</body>
+</html>
